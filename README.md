@@ -104,6 +104,20 @@ go build -o confluence-mcp
 }
 ```
 
+#### 远程连接
+
+如果想通过远程连接到运行 confluence-mcp 的服务器，可以使用以下配置：
+
+```json
+{
+  "mcpServers": {
+    "remote-confluence": {
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
 注意事项：
 1. 将 `<服务器IP>` 替换为运行 confluence-mcp 的服务器 IP 地址
 2. 确保服务器防火墙允许 8080 端口访问

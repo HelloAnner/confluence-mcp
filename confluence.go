@@ -24,7 +24,7 @@ type ConfluenceClient struct {
 func NewConfluenceClient() *ConfluenceClient {
 	return &ConfluenceClient{
 		BaseURL:  os.Getenv("CONFLUENCE_BASE_URL"),
-		Email:    os.Getenv("CONFLUENCE_USER_EMAIL"),
+		Email:    os.Getenv("CONFLUENCE_USER_NAME"),
 		APIToken: os.Getenv("CONFLUENCE_API_TOKEN"),
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,

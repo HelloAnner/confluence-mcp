@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 
@@ -18,13 +17,9 @@ func main() {
 
 	// 验证必需的环境变量
 	if os.Getenv("CONFLUENCE_BASE_URL") == "" ||
-		os.Getenv("CONFLUENCE_API_TOKEN") == "" ||
-		os.Getenv("CONFLUENCE_USER_EMAIL") == "" {
-		fmt.Fprintf(os.Stderr, "❌ 缺少必需的环境变量:\n")
-		fmt.Fprintf(os.Stderr, "   CONFLUENCE_BASE_URL - Confluence 实例的基础 URL\n")
-		fmt.Fprintf(os.Stderr, "   CONFLUENCE_API_TOKEN - Confluence API 令牌\n")
-		fmt.Fprintf(os.Stderr, "   CONFLUENCE_USER_EMAIL - Confluence 用户邮箱\n")
-		os.Exit(1)
+		os.Getenv("CONFLUENCE_USER_NAME") == "" ||
+		os.Getenv("CONFLUENCE_API_TOKEN") == "" {
+		log.Fatalf("❌ 缺少必需的环境变量:\n   CONFLUENCE_BASE_URL - Confluence 实例的基础 URL \n   CONFLUENCE_USER_NAME - Confluence 用户名称\n   CONFLUENCE_API_TOKEN - Confluence API 令牌")
 	}
 
 	// 创建 MCP 服务器
@@ -36,8 +31,21 @@ func main() {
 	// 注册工具
 	registerTools(s)
 
+	// 创建 HTTP 服务器
+	httpServer := server.NewStreamableHTTPServer(s)
+
+	log.Println("Starting Confluence MCP HTTP server on :8080")
+	log.Println("Endpoint: http://localhost:8080/mcp")
+	log.Println("")
+	log.Println("Available tools:")
+	log.Println("- get_page: 获取Confluence页面信息")
+	log.Println("- get_child_pages: 获取指定页面的子页面列表")
+	log.Println("- create_page: 在Confluence中创建新页面")
+	log.Println("- create_comment: 为Confluence页面添加评论")
+	log.Println("- search_pages: 在Confluence中搜索页面")
+
 	// 启动服务器
-	if err := server.ServeStdio(s); err != nil {
+	if err := httpServer.Start(":8080"); err != nil {
 		log.Fatalf("服务器启动失败: %v", err)
 	}
 }
@@ -46,6 +54,10 @@ func main() {
 func registerTools(s *server.MCPServer) {
 	// 创建 Confluence 客户端
 	client := NewConfluenceClient()
+
+	log.Println(client.BaseURL);
+	log.Println(client.Email);
+	log.Println(client.APIToken);
 
 	// 获取页面工具
 	s.AddTool(mcp.NewTool("get_page",

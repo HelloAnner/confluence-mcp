@@ -1,0 +1,88 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/joho/godotenv"
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
+)
+
+func main() {
+	// 加载环境变量
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: .env file not found: %v", err)
+	}
+
+	// 验证必需的环境变量
+	if os.Getenv("CONFLUENCE_BASE_URL") == "" ||
+		os.Getenv("CONFLUENCE_API_TOKEN") == "" ||
+		os.Getenv("CONFLUENCE_USER_EMAIL") == "" {
+		fmt.Fprintf(os.Stderr, "❌ 缺少必需的环境变量:\n")
+		fmt.Fprintf(os.Stderr, "   CONFLUENCE_BASE_URL - Confluence 实例的基础 URL\n")
+		fmt.Fprintf(os.Stderr, "   CONFLUENCE_API_TOKEN - Confluence API 令牌\n")
+		fmt.Fprintf(os.Stderr, "   CONFLUENCE_USER_EMAIL - Confluence 用户邮箱\n")
+		os.Exit(1)
+	}
+
+	// 创建 MCP 服务器
+	s := server.NewMCPServer(
+		"confluence-mcp",
+		"1.0.0",
+	)
+
+	// 注册工具
+	registerTools(s)
+
+	// 启动服务器
+	if err := server.ServeStdio(s); err != nil {
+		log.Fatalf("服务器启动失败: %v", err)
+	}
+}
+
+// 注册所有工具
+func registerTools(s *server.MCPServer) {
+	// 创建 Confluence 客户端
+	client := NewConfluenceClient()
+
+	// 获取页面工具
+	s.AddTool(mcp.NewTool("get_page",
+		mcp.WithDescription("获取Confluence页面信息"),
+		mcp.WithString("page_id", mcp.Required(), mcp.Description("Confluence页面的ID")),
+	), handleGetPage(client))
+
+	// 获取子页面工具
+	s.AddTool(mcp.NewTool("get_child_pages",
+		mcp.WithDescription("获取指定页面的子页面列表"),
+		mcp.WithString("page_id", mcp.Required(), mcp.Description("父页面的ID")),
+		mcp.WithNumber("limit", mcp.Description("返回结果的最大数量")),
+		mcp.WithNumber("start", mcp.Description("起始位置")),
+	), handleGetChildPages(client))
+
+	// 创建页面工具
+	s.AddTool(mcp.NewTool("create_page",
+		mcp.WithDescription("在Confluence中创建新页面"),
+		mcp.WithString("title", mcp.Required(), mcp.Description("页面标题")),
+		mcp.WithString("content", mcp.Required(), mcp.Description("页面内容（支持Confluence存储格式）")),
+		mcp.WithString("space_key", mcp.Required(), mcp.Description("空间键")),
+		mcp.WithString("parent_id", mcp.Description("父页面ID（可选）")),
+	), handleCreatePage(client))
+
+	// 创建评论工具
+	s.AddTool(mcp.NewTool("create_comment",
+		mcp.WithDescription("为Confluence页面添加评论"),
+		mcp.WithString("page_id", mcp.Required(), mcp.Description("页面ID")),
+		mcp.WithString("comment", mcp.Required(), mcp.Description("评论内容")),
+	), handleCreateComment(client))
+
+	// 搜索页面工具
+	s.AddTool(mcp.NewTool("search_pages",
+		mcp.WithDescription("在Confluence中搜索页面"),
+		mcp.WithString("query", mcp.Required(), mcp.Description("搜索关键词")),
+		mcp.WithString("space_key", mcp.Description("限制搜索的空间（可选）")),
+		mcp.WithNumber("limit", mcp.Description("返回结果的最大数量")),
+		mcp.WithNumber("start", mcp.Description("起始位置")),
+	), handleSearchPages(client))
+}

@@ -21,18 +21,19 @@ RUN npm ci --only=production && npm cache clean --force
 
 # 创建非 root 用户
 RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nextjs -u 1001
+RUN adduser -S mcpuser -u 1001
 
 # 更改文件所有权
-RUN chown -R nextjs:nodejs /app
-USER nextjs
+RUN chown -R mcpuser:nodejs /app
+USER mcpuser
 
-# 暴露端口
-EXPOSE 3000
+# 暴露端口（用于SSE HTTP接口）
+EXPOSE 8080
 
 # 设置环境变量
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV MCP_SERVER_NAME=confluence-mcp
+ENV MCP_SERVER_VERSION=1.0.0
 
-# 启动应用
+# 启动MCP服务器
 CMD ["npm", "start"]

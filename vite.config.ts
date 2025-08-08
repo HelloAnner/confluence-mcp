@@ -5,21 +5,42 @@ export default defineConfig({
     target: 'node18',
     outDir: 'dist',
     ssr: true,
-    lib: {
-      entry: 'src/main.ts',
-      formats: ['es'],
-      fileName: 'main'
-    },
     rollupOptions: {
-      external: ['express', 'cors'],
+      input: {
+        main: 'src/main.ts',
+        server: 'src/server.ts'
+      },
+      external: [
+        '@modelcontextprotocol/sdk',
+        'axios',
+        'dotenv',
+        'express',
+        'cors',
+        'child_process',
+        'path',
+        'url'
+      ],
       output: {
-        banner: '#!/usr/bin/env node'
+        format: 'es',
+        entryFileNames: '[name].js',
+        banner: (chunk) => {
+          if (chunk.name === 'main') {
+            return '#!/usr/bin/env node';
+          }
+          return '';
+        }
       }
     },
     minify: false
   },
   optimizeDeps: {
-    exclude: ['express', 'cors']
+    exclude: [
+      '@modelcontextprotocol/sdk',
+      'axios',
+      'dotenv',
+      'express',
+      'cors'
+    ]
   },
   esbuild: {
     platform: 'node'

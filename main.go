@@ -1,8 +1,9 @@
 package main
 
 import (
+	"context"
 	"log"
-	"os"
+	"net/http"
 
 	"github.com/joho/godotenv"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -10,16 +11,9 @@ import (
 )
 
 func main() {
-	// 加载环境变量
+	// 加载环境变量（可选，用于默认配置）
 	if err := godotenv.Load(); err != nil {
 		log.Printf("Warning: .env file not found: %v", err)
-	}
-
-	// 验证必需的环境变量
-	if os.Getenv("CONFLUENCE_BASE_URL") == "" ||
-		os.Getenv("CONFLUENCE_USER_NAME") == "" ||
-		os.Getenv("CONFLUENCE_API_TOKEN") == "" {
-		log.Fatalf("❌ 缺少必需的环境变量:\n   CONFLUENCE_BASE_URL - Confluence 实例的基础 URL \n   CONFLUENCE_USER_NAME - Confluence 用户名称\n   CONFLUENCE_API_TOKEN - Confluence API 令牌")
 	}
 
 	// 创建 MCP 服务器
@@ -31,11 +25,21 @@ func main() {
 	// 注册工具
 	registerTools(s)
 
-	// 创建 HTTP 服务器
-	httpServer := server.NewStreamableHTTPServer(s)
+	// 创建 HTTP 服务器，配置HTTP上下文函数来提取头信息
+	httpServer := server.NewStreamableHTTPServer(s, 
+		server.WithHTTPContextFunc(func(ctx context.Context, req *http.Request) context.Context {
+			// 将HTTP头信息注入到上下文中
+			return context.WithValue(ctx, "request", req)
+		}),
+	)
 
 	log.Println("Starting Confluence MCP HTTP server on :8080")
 	log.Println("Endpoint: http://localhost:8080/mcp")
+	log.Println("")
+	log.Println("Multi-user support enabled - pass credentials via headers:")
+	log.Println("- X-Confluence-Base-URL: Confluence实例URL")
+	log.Println("- X-Confluence-Email: 用户邮箱")
+	log.Println("- X-Confluence-Token: API令牌")
 	log.Println("")
 	log.Println("Available tools:")
 	log.Println("- get_page: 获取Confluence页面信息")
@@ -52,18 +56,11 @@ func main() {
 
 // 注册所有工具
 func registerTools(s *server.MCPServer) {
-	// 创建 Confluence 客户端
-	client := NewConfluenceClient()
-
-	log.Println(client.BaseURL);
-	log.Println(client.Email);
-	log.Println(client.APIToken);
-
 	// 获取页面工具
 	s.AddTool(mcp.NewTool("get_page",
 		mcp.WithDescription("获取Confluence页面信息"),
 		mcp.WithString("page_id", mcp.Required(), mcp.Description("Confluence页面的ID")),
-	), handleGetPage(client))
+	), handleGetPage())
 
 	// 获取子页面工具
 	s.AddTool(mcp.NewTool("get_child_pages",
@@ -71,7 +68,7 @@ func registerTools(s *server.MCPServer) {
 		mcp.WithString("page_id", mcp.Required(), mcp.Description("父页面的ID")),
 		mcp.WithNumber("limit", mcp.Description("返回结果的最大数量")),
 		mcp.WithNumber("start", mcp.Description("起始位置")),
-	), handleGetChildPages(client))
+	), handleGetChildPages())
 
 	// 创建页面工具
 	s.AddTool(mcp.NewTool("create_page",
@@ -80,14 +77,14 @@ func registerTools(s *server.MCPServer) {
 		mcp.WithString("content", mcp.Required(), mcp.Description("页面内容（支持Confluence存储格式）")),
 		mcp.WithString("space_key", mcp.Required(), mcp.Description("空间键")),
 		mcp.WithString("parent_id", mcp.Description("父页面ID（可选）")),
-	), handleCreatePage(client))
+	), handleCreatePage())
 
 	// 创建评论工具
 	s.AddTool(mcp.NewTool("create_comment",
 		mcp.WithDescription("为Confluence页面添加评论"),
 		mcp.WithString("page_id", mcp.Required(), mcp.Description("页面ID")),
 		mcp.WithString("comment", mcp.Required(), mcp.Description("评论内容")),
-	), handleCreateComment(client))
+	), handleCreateComment())
 
 	// 搜索页面工具
 	s.AddTool(mcp.NewTool("search_pages",
@@ -96,5 +93,5 @@ func registerTools(s *server.MCPServer) {
 		mcp.WithString("space_key", mcp.Description("限制搜索的空间（可选）")),
 		mcp.WithNumber("limit", mcp.Description("返回结果的最大数量")),
 		mcp.WithNumber("start", mcp.Description("起始位置")),
-	), handleSearchPages(client))
+	), handleSearchPages())
 }

@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"time"
 )
@@ -23,13 +22,43 @@ type ConfluenceClient struct {
 // NewConfluenceClient 创建新的 Confluence 客户端
 func NewConfluenceClient() *ConfluenceClient {
 	return &ConfluenceClient{
-		BaseURL:  os.Getenv("CONFLUENCE_BASE_URL"),
-		Email:    os.Getenv("CONFLUENCE_USER_NAME"),
-		APIToken: os.Getenv("CONFLUENCE_API_TOKEN"),
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
+}
+
+// NewConfluenceClientWithCredentials 使用指定凭据创建客户端
+func NewConfluenceClientWithCredentials(baseURL, email, apiToken string) *ConfluenceClient {
+	return &ConfluenceClient{
+		BaseURL:  baseURL,
+		Email:    email,
+		APIToken: apiToken,
+		HTTPClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
+}
+
+// SetCredentials 设置客户端凭据
+func (c *ConfluenceClient) SetCredentials(baseURL, email, apiToken string) {
+	c.BaseURL = baseURL
+	c.Email = email
+	c.APIToken = apiToken
+}
+
+// ValidateCredentials 验证凭据是否完整
+func (c *ConfluenceClient) ValidateCredentials() error {
+	if c.BaseURL == "" {
+		return fmt.Errorf("缺少 Confluence Base URL")
+	}
+	if c.Email == "" {
+		return fmt.Errorf("缺少用户邮箱")
+	}
+	if c.APIToken == "" {
+		return fmt.Errorf("缺少 API Token")
+	}
+	return nil
 }
 
 // makeRequest 发送 HTTP 请求

@@ -4,14 +4,63 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-var confluenceClient = NewConfluenceClient()
+// getHeadersFromContext 从上下文中提取HTTP头信息
+// 这个函数尝试从mcp-go库设置的上下文中获取HTTP头信息
+func getHeadersFromContext(ctx context.Context) http.Header {
+	// 尝试从上下文中获取HTTP头信息
+	// mcp-go库可能会将HTTP头信息存储在上下文中
+	if headers, ok := ctx.Value("headers").(http.Header); ok {
+		return headers
+	}
+	
+	// 尝试其他可能的键名
+	if headers, ok := ctx.Value("http.headers").(http.Header); ok {
+		return headers
+	}
+	
+	// 尝试从request中获取
+	if req, ok := ctx.Value("request").(*http.Request); ok {
+		return req.Header
+	}
+	
+	// 尝试从http.Request中获取
+	if req, ok := ctx.Value("http.Request").(*http.Request); ok {
+		return req.Header
+	}
+	
+	return nil
+}
 
-func handleGetPage(client *ConfluenceClient) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// getClientFromContext 从上下文中获取用户凭据并创建客户端
+func getClientFromContext(request mcp.CallToolRequest) (*ConfluenceClient, error) {
+
+	headers := request.Header
+
+	// 首先尝试从环境变量获取默认配置
+	baseURL := headers.Get("X-Confluence-Base-URL")
+	name := headers.Get("X-Confluence-Name")
+	apiToken := headers.Get("X-Confluence-Token")
+	
+	client := NewConfluenceClientWithCredentials(baseURL, name, apiToken)
+	if err := client.ValidateCredentials(); err != nil {
+		return nil, fmt.Errorf("认证信息不完整: %v", err)
+	}
+	
+	return client, nil
+}
+
+func handleGetPage() func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		client, err := getClientFromContext(request)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("认证失败: %v", err)), nil
+		}
+		
 		pageID, err := request.RequireString("page_id")
 		if err != nil {
 			return mcp.NewToolResultError("page_id is required"), nil
@@ -27,8 +76,13 @@ func handleGetPage(client *ConfluenceClient) func(ctx context.Context, request m
 	}
 }
 
-func handleGetChildPages(client *ConfluenceClient) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleGetChildPages() func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		client, err := getClientFromContext(request)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("认证失败: %v", err)), nil
+		}
+		
 		pageID, err := request.RequireString("page_id")
 		if err != nil {
 			return mcp.NewToolResultError("page_id is required"), nil
@@ -47,8 +101,13 @@ func handleGetChildPages(client *ConfluenceClient) func(ctx context.Context, req
 	}
 }
 
-func handleCreatePage(client *ConfluenceClient) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleCreatePage() func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		client, err := getClientFromContext(request)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("认证失败: %v", err)), nil
+		}
+		
 		title, err := request.RequireString("title")
 		if err != nil {
 			return mcp.NewToolResultError("title is required"), nil
@@ -76,8 +135,13 @@ func handleCreatePage(client *ConfluenceClient) func(ctx context.Context, reques
 	}
 }
 
-func handleCreateComment(client *ConfluenceClient) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleCreateComment() func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		client, err := getClientFromContext(request)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("认证失败: %v", err)), nil
+		}
+		
 		pageID, err := request.RequireString("page_id")
 		if err != nil {
 			return mcp.NewToolResultError("page_id is required"), nil
@@ -98,8 +162,13 @@ func handleCreateComment(client *ConfluenceClient) func(ctx context.Context, req
 	}
 }
 
-func handleSearchPages(client *ConfluenceClient) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleSearchPages() func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		client, err := getClientFromContext(request)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("认证失败: %v", err)), nil
+		}
+		
 		query, err := request.RequireString("query")
 		if err != nil {
 			return mcp.NewToolResultError("query is required"), nil

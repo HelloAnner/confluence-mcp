@@ -4,9 +4,9 @@
     "remote-confluence": {
       "url": "http://localhost:8080/mcp",
       "headers": {
-        "X-Confluence-Base-URL": "https://your-company.atlassian.net",
-        "X-Confluence-Email": "your-email@company.com",
-        "X-Confluence-Token": "your-api-token"
+        "X-Confluence-Base-URL": "https://confluence.company.com",
+        "X-Confluence-Name": "userName",
+        "X-Confluence-Token": "password"
       }
     }
   }

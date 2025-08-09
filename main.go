@@ -41,7 +41,7 @@ func main() {
 	log.Println("- X-Confluence-Token: UserPassword")
 	log.Println("")
 	log.Println("Available tools:")
-	log.Println("- get_page: 获取Confluence页面信息")
+	log.Println("- get_page: 获取Confluence页面信息（包含评论）")
 	log.Println("- get_child_pages: 获取指定页面的子页面列表")
 	log.Println("- create_page: 在Confluence中创建新页面")
 	log.Println("- create_comment: 为Confluence页面添加评论")
@@ -57,7 +57,7 @@ func main() {
 func registerTools(s *server.MCPServer) {
 	// 获取页面工具
 	s.AddTool(mcp.NewTool("get_page",
-		mcp.WithDescription("获取Confluence页面信息"),
+		mcp.WithDescription("获取Confluence页面信息（包含页面内容和评论）"),
 		mcp.WithString("page_id", mcp.Required(), mcp.Description("Confluence页面的ID")),
 	), handleGetPage())
 

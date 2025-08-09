@@ -20,12 +20,12 @@ func handleGetPage() func(ctx context.Context, request mcp.CallToolRequest) (*mc
 			return mcp.NewToolResultError("page_id is required"), nil
 		}
 
-		page, err := client.GetPage(pageID)
+		pageWithComments, err := client.GetPage(pageID)
 		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("Failed to get page: %v", err)), nil
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to get page with comments: %v", err)), nil
 		}
 
-		result, _ := json.Marshal(page)
+		result, _ := json.Marshal(pageWithComments)
 		return mcp.NewToolResultText(string(result)), nil
 	}
 }
@@ -79,7 +79,7 @@ func handleCreatePage() func(ctx context.Context, request mcp.CallToolRequest) (
 
 		parentID := request.GetString("parent_id", "")
 
-		page, err := client.CreatePage(spaceKey, title, content, parentID)
+		page, err := client.CreatePage(title, content, spaceKey, parentID)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to create page: %v", err)), nil
 		}

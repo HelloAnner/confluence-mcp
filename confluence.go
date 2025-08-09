@@ -13,9 +13,9 @@ import (
 
 // ConfluenceClient Confluence API 客户端
 type ConfluenceClient struct {
-	BaseURL   string
-	Email     string
-	APIToken  string
+	BaseURL    string
+	Email      string
+	APIToken   string
 	HTTPClient *http.Client
 }
 
@@ -157,10 +157,10 @@ type CommentInfo struct {
 
 // ChildPageInfo 子页面信息结构
 type ChildPageInfo struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Type   string `json:"type"`
-	Status string `json:"status"`
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Type    string `json:"type"`
+	Status  string `json:"status"`
 	Version struct {
 		Number int    `json:"number"`
 		When   string `json:"when"`
@@ -214,12 +214,36 @@ type SearchResult struct {
 	} `json:"body,omitempty"`
 	Excerpt *string `json:"excerpt,omitempty"`
 	Links   struct {
-			WebUI string `json:"webui"`
+		WebUI string `json:"webui"`
 	} `json:"_links"`
 }
 
-// GetPage 获取页面信息
-func (c *ConfluenceClient) GetPage(pageID string) (*PageResponse, error) {
+// GetPageComments 获取页面评论
+func (c *ConfluenceClient) GetPageComments(pageID string) ([]CommentInfo, error) {
+	endpoint := fmt.Sprintf("/content/%s/child/comment?expand=body.storage,version", pageID)
+	resp, err := c.makeRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("获取页面评论失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var commentsResponse struct {
+		Results []CommentInfo `json:"results"`
+		Start   int           `json:"start"`
+		Limit   int           `json:"limit"`
+		Size    int           `json:"size"`
+	}
+	
+	if err := json.NewDecoder(resp.Body).Decode(&commentsResponse); err != nil {
+		return nil, fmt.Errorf("解析评论数据失败: %w", err)
+	}
+
+	return commentsResponse.Results, nil
+}
+
+// GetPage 获取页面信息（包含评论）
+func (c *ConfluenceClient) GetPage(pageID string) (*PageWithCommentsResponse, error) {
+	// 获取页面信息
 	resp, err := c.makeRequest("GET", fmt.Sprintf("/content/%s?expand=body.storage,version,space", pageID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("获取页面失败: %w", err)
@@ -231,7 +255,20 @@ func (c *ConfluenceClient) GetPage(pageID string) (*PageResponse, error) {
 		return nil, fmt.Errorf("解析页面数据失败: %w", err)
 	}
 
-	return &page, nil
+	// 获取页面评论
+	comments, err := c.GetPageComments(pageID)
+	if err != nil {
+		// 如果获取评论失败，记录错误但不影响页面获取
+		comments = []CommentInfo{}
+	}
+
+	// 组合页面和评论数据
+	result := &PageWithCommentsResponse{
+		Page:     page,
+		Comments: comments,
+	}
+
+	return result, nil
 }
 
 // GetChildPages 获取子页面列表
@@ -290,6 +327,11 @@ type PageResponse struct {
 	Links struct {
 		Webui string `json:"webui"`
 	} `json:"_links"`
+}
+
+type PageWithCommentsResponse struct {
+	Page     PageResponse  `json:"page"`
+	Comments []CommentInfo `json:"comments"`
 }
 
 type ChildPagesResponse struct {

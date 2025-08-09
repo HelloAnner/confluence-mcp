@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -18,12 +17,12 @@ func getClientFromContext(request mcp.CallToolRequest) (*ConfluenceClient, error
 	baseURL := headers.Get("X-Confluence-Base-URL")
 	name := headers.Get("X-Confluence-Name")
 	apiToken := headers.Get("X-Confluence-Token")
-	
+
 	client := NewConfluenceClientWithCredentials(baseURL, name, apiToken)
 	if err := client.ValidateCredentials(); err != nil {
 		return nil, fmt.Errorf("Confluence Auth Failed: %v", err)
 	}
-	
+
 	return client, nil
 }
 
@@ -33,7 +32,7 @@ func handleGetPage() func(ctx context.Context, request mcp.CallToolRequest) (*mc
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("认证失败: %v", err)), nil
 		}
-		
+
 		pageID, err := request.RequireString("page_id")
 		if err != nil {
 			return mcp.NewToolResultError("page_id is required"), nil
@@ -55,7 +54,7 @@ func handleGetChildPages() func(ctx context.Context, request mcp.CallToolRequest
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("认证失败: %v", err)), nil
 		}
-		
+
 		pageID, err := request.RequireString("page_id")
 		if err != nil {
 			return mcp.NewToolResultError("page_id is required"), nil
@@ -80,7 +79,7 @@ func handleCreatePage() func(ctx context.Context, request mcp.CallToolRequest) (
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("认证失败: %v", err)), nil
 		}
-		
+
 		title, err := request.RequireString("title")
 		if err != nil {
 			return mcp.NewToolResultError("title is required"), nil
@@ -114,7 +113,7 @@ func handleCreateComment() func(ctx context.Context, request mcp.CallToolRequest
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("认证失败: %v", err)), nil
 		}
-		
+
 		pageID, err := request.RequireString("page_id")
 		if err != nil {
 			return mcp.NewToolResultError("page_id is required"), nil
@@ -141,7 +140,7 @@ func handleSearchPages() func(ctx context.Context, request mcp.CallToolRequest) 
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("认证失败: %v", err)), nil
 		}
-		
+
 		query, err := request.RequireString("query")
 		if err != nil {
 			return mcp.NewToolResultError("query is required"), nil

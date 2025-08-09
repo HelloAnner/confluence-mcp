@@ -28,8 +28,7 @@ func main() {
 	// 创建 HTTP 服务器，配置HTTP上下文函数来提取头信息
 	httpServer := server.NewStreamableHTTPServer(s,
 		server.WithHTTPContextFunc(func(ctx context.Context, req *http.Request) context.Context {
-			// 将HTTP头信息注入到上下文中
-			return context.WithValue(ctx, "request", req)
+			return req.Context() // Do Nothing
 		}),
 	)
 

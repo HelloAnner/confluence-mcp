@@ -8,24 +8,6 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// getClientFromContext 从上下文中获取用户凭据并创建客户端
-func getClientFromContext(request mcp.CallToolRequest) (*ConfluenceClient, error) {
-
-	headers := request.Header
-
-	// 首先尝试从环境变量获取默认配置
-	baseURL := headers.Get("X-Confluence-Base-URL")
-	name := headers.Get("X-Confluence-Name")
-	apiToken := headers.Get("X-Confluence-Token")
-
-	client := NewConfluenceClientWithCredentials(baseURL, name, apiToken)
-	if err := client.ValidateCredentials(); err != nil {
-		return nil, fmt.Errorf("Confluence Auth Failed: %v", err)
-	}
-
-	return client, nil
-}
-
 func handleGetPage() func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		client, err := getClientFromContext(request)
@@ -158,4 +140,22 @@ func handleSearchPages() func(ctx context.Context, request mcp.CallToolRequest) 
 		result, _ := json.Marshal(pages)
 		return mcp.NewToolResultText(string(result)), nil
 	}
+}
+
+// getClientFromContext 从上下文中获取用户凭据并创建客户端
+func getClientFromContext(request mcp.CallToolRequest) (*ConfluenceClient, error) {
+
+	headers := request.Header
+
+	// 首先尝试从环境变量获取默认配置
+	baseURL := headers.Get("X-Confluence-Base-URL")
+	name := headers.Get("X-Confluence-Name")
+	apiToken := headers.Get("X-Confluence-Token")
+
+	client := NewConfluenceClientWithCredentials(baseURL, name, apiToken)
+	if err := client.ValidateCredentials(); err != nil {
+		return nil, fmt.Errorf("confluence auth failed: %v", err)
+	}
+
+	return client, nil
 }

@@ -20,13 +20,14 @@ func handleGetPage() func(ctx context.Context, request mcp.CallToolRequest) (*mc
 			return mcp.NewToolResultError("page_id is required"), nil
 		}
 
-		pageWithComments, err := client.GetPage(pageID)
+		// 直接转换为Markdown格式
+		markdownPage, err := client.ConvertPageToMarkdown(pageID)
 		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("Failed to get page with comments: %v", err)), nil
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to get page as markdown: %v", err)), nil
 		}
 
-		result, _ := json.Marshal(pageWithComments)
-		return mcp.NewToolResultText(string(result)), nil
+		// 返回纯Markdown文本内容
+		return mcp.NewToolResultText(markdownPage.Content), nil
 	}
 }
 
@@ -138,6 +139,28 @@ func handleSearchPages() func(ctx context.Context, request mcp.CallToolRequest) 
 		}
 
 		result, _ := json.Marshal(pages)
+		return mcp.NewToolResultText(string(result)), nil
+	}
+}
+
+func handleConvertPageToMarkdown() func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		client, err := getClientFromContext(request)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("认证失败: %v", err)), nil
+		}
+
+		pageID, err := request.RequireString("page_id")
+		if err != nil {
+			return mcp.NewToolResultError("page_id is required"), nil
+		}
+
+		markdownPage, err := client.ConvertPageToMarkdown(pageID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to convert page to markdown: %v", err)), nil
+		}
+
+		result, _ := json.Marshal(markdownPage)
 		return mcp.NewToolResultText(string(result)), nil
 	}
 }

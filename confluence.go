@@ -7,7 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -233,7 +235,7 @@ func (c *ConfluenceClient) GetPageComments(pageID string) ([]CommentInfo, error)
 		Limit   int           `json:"limit"`
 		Size    int           `json:"size"`
 	}
-	
+
 	if err := json.NewDecoder(resp.Body).Decode(&commentsResponse); err != nil {
 		return nil, fmt.Errorf("解析评论数据失败: %w", err)
 	}
@@ -322,7 +324,12 @@ type PageResponse struct {
 		} `json:"storage"`
 	} `json:"body"`
 	Version struct {
-		Number int `json:"number"`
+		Number int    `json:"number"`
+		When   string `json:"when"`
+		By     struct {
+			DisplayName string `json:"displayName"`
+			Email       string `json:"email"`
+		} `json:"by"`
 	} `json:"version"`
 	Links struct {
 		Webui string `json:"webui"`
@@ -460,4 +467,301 @@ func (c *ConfluenceClient) SearchPages(query, spaceKey string, limit, start int)
 	}
 
 	return &searchResp, nil
+}
+
+// MarkdownPageResponse Markdown格式的页面响应
+type MarkdownPageResponse struct {
+	Metadata MarkdownMetadata `json:"metadata"`
+	Content  string           `json:"content"`
+}
+
+// MarkdownMetadata 页面元数据
+type MarkdownMetadata struct {
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	SpaceKey    string    `json:"space_key"`
+	SpaceName   string    `json:"space_name"`
+	Version     int       `json:"version"`
+	LastUpdated time.Time `json:"last_updated"`
+	UpdatedBy   string    `json:"updated_by"`
+	WebURL      string    `json:"web_url"`
+}
+
+// ConvertPageToMarkdown 将页面内容转换为Markdown格式
+func (c *ConfluenceClient) ConvertPageToMarkdown(pageID string) (*MarkdownPageResponse, error) {
+	// 获取页面和评论数据
+	pageWithComments, err := c.GetPage(pageID)
+	if err != nil {
+		return nil, fmt.Errorf("获取页面数据失败: %w", err)
+	}
+
+	// 解析最后更新时间
+	lastUpdated, _ := time.Parse(time.RFC3339, pageWithComments.Page.Version.When)
+
+	// 构建元数据
+	metadata := MarkdownMetadata{
+		ID:          pageWithComments.Page.ID,
+		Title:       pageWithComments.Page.Title,
+		SpaceKey:    pageWithComments.Page.Space.Key,
+		SpaceName:   pageWithComments.Page.Space.Name,
+		Version:     pageWithComments.Page.Version.Number,
+		LastUpdated: lastUpdated,
+		UpdatedBy:   pageWithComments.Page.Version.By.DisplayName,
+		WebURL:      c.BaseURL + pageWithComments.Page.Links.Webui,
+	}
+
+	// 转换页面内容为Markdown
+	markdownContent := c.convertToMarkdown(pageWithComments)
+
+	return &MarkdownPageResponse{
+		Metadata: metadata,
+		Content:  markdownContent,
+	}, nil
+}
+
+// convertToMarkdown 将Confluence存储格式转换为Markdown
+func (c *ConfluenceClient) convertToMarkdown(pageWithComments *PageWithCommentsResponse) string {
+	var markdown strings.Builder
+
+	// 添加页面标题和元数据
+	markdown.WriteString(fmt.Sprintf("# %s\n\n", pageWithComments.Page.Title))
+
+	// 添加元数据信息
+	markdown.WriteString("## 页面信息\n\n")
+	markdown.WriteString(fmt.Sprintf("- **页面ID**: %s\n", pageWithComments.Page.ID))
+	markdown.WriteString(fmt.Sprintf("- **空间**: %s (%s)\n", pageWithComments.Page.Space.Name, pageWithComments.Page.Space.Key))
+	markdown.WriteString(fmt.Sprintf("- **版本**: %d\n", pageWithComments.Page.Version.Number))
+	if pageWithComments.Page.Version.When != "" {
+		if lastUpdated, err := time.Parse(time.RFC3339, pageWithComments.Page.Version.When); err == nil {
+			markdown.WriteString(fmt.Sprintf("- **最后更新**: %s\n", lastUpdated.Format("2006-01-02 15:04:05")))
+		}
+	}
+	if pageWithComments.Page.Version.By.DisplayName != "" {
+		markdown.WriteString(fmt.Sprintf("- **更新者**: %s\n", pageWithComments.Page.Version.By.DisplayName))
+	}
+	markdown.WriteString(fmt.Sprintf("- **页面链接**: %s%s\n\n", c.BaseURL, pageWithComments.Page.Links.Webui))
+
+	// 添加页面内容
+	markdown.WriteString("## 页面内容\n\n")
+	pageContent := c.htmlToMarkdown(pageWithComments.Page.Body.Storage.Value)
+	markdown.WriteString(pageContent)
+	markdown.WriteString("\n\n")
+
+	// 添加评论部分
+	if len(pageWithComments.Comments) > 0 {
+		markdown.WriteString("## 评论\n\n")
+		for i, comment := range pageWithComments.Comments {
+			markdown.WriteString(fmt.Sprintf("### 评论 %d\n\n", i+1))
+
+			// 评论元数据
+			if comment.Version.By.DisplayName != "" {
+				markdown.WriteString(fmt.Sprintf("**作者**: %s  \n", comment.Version.By.DisplayName))
+			}
+			if comment.Version.When != "" {
+				if commentTime, err := time.Parse(time.RFC3339, comment.Version.When); err == nil {
+					markdown.WriteString(fmt.Sprintf("**时间**: %s  \n", commentTime.Format("2006-01-02 15:04:05")))
+				}
+			}
+			markdown.WriteString("\n")
+
+			// 评论内容
+			commentContent := c.htmlToMarkdown(comment.Body.Storage.Value)
+			markdown.WriteString(commentContent)
+			markdown.WriteString("\n\n")
+		}
+	}
+
+	return markdown.String()
+}
+
+// htmlToMarkdown 将Confluence HTML存储格式转换为Markdown
+func (c *ConfluenceClient) htmlToMarkdown(html string) string {
+	// 移除XML声明和根标签
+	content := strings.TrimSpace(html)
+
+	// 移除常见的XML声明
+	if strings.HasPrefix(content, "<?xml") {
+		if idx := strings.Index(content, "?>"); idx != -1 {
+			content = content[idx+2:]
+		}
+	}
+
+	// 基本的HTML到Markdown转换
+	content = c.convertBasicHTML(content)
+	content = c.convertConfluenceSpecific(content)
+	content = c.cleanupMarkdown(content)
+
+	return strings.TrimSpace(content)
+}
+
+// convertBasicHTML 转换基本的HTML标签
+func (c *ConfluenceClient) convertBasicHTML(content string) string {
+	// 标题转换
+	content = regexp.MustCompile(`<h([1-6])(?:[^>]*)>(.*?)</h[1-6]>`).ReplaceAllStringFunc(content, func(match string) string {
+		re := regexp.MustCompile(`<h([1-6])(?:[^>]*)>(.*?)</h[1-6]>`)
+		matches := re.FindStringSubmatch(match)
+		if len(matches) >= 3 {
+			level := matches[1]
+			text := strings.TrimSpace(matches[2])
+			text = c.stripHTMLTags(text)
+			return strings.Repeat("#", parseInt(level)) + " " + text + "\n\n"
+		}
+		return match
+	})
+
+	// 段落转换
+	content = regexp.MustCompile(`<p(?:[^>]*)>(.*?)</p>`).ReplaceAllStringFunc(content, func(match string) string {
+		re := regexp.MustCompile(`<p(?:[^>]*)>(.*?)</p>`)
+		matches := re.FindStringSubmatch(match)
+		if len(matches) >= 2 {
+			text := strings.TrimSpace(matches[1])
+			if text != "" {
+				return text + "\n\n"
+			}
+		}
+		return ""
+	})
+
+	// 粗体转换
+	content = regexp.MustCompile(`<strong(?:[^>]*)>(.*?)</strong>`).ReplaceAllString(content, "**$1**")
+	content = regexp.MustCompile(`<b(?:[^>]*)>(.*?)</b>`).ReplaceAllString(content, "**$1**")
+
+	// 斜体转换
+	content = regexp.MustCompile(`<em(?:[^>]*)>(.*?)</em>`).ReplaceAllString(content, "*$1*")
+	content = regexp.MustCompile(`<i(?:[^>]*)>(.*?)</i>`).ReplaceAllString(content, "*$1*")
+
+	// 代码转换
+	content = regexp.MustCompile(`<code(?:[^>]*)>(.*?)</code>`).ReplaceAllString(content, "`$1`")
+
+	// 链接转换
+	content = regexp.MustCompile(`<a(?:[^>]*)\s+href="([^"]*)"(?:[^>]*)>(.*?)</a>`).ReplaceAllString(content, "[$2]($1)")
+
+	// 换行转换
+	content = regexp.MustCompile(`<br\s*/?>`).ReplaceAllString(content, "  \n")
+
+	// 列表转换
+	content = c.convertLists(content)
+
+	return content
+}
+
+// convertLists 转换列表
+func (c *ConfluenceClient) convertLists(content string) string {
+	// 无序列表
+	content = regexp.MustCompile(`<ul(?:[^>]*)>(.*?)</ul>`).ReplaceAllStringFunc(content, func(match string) string {
+		re := regexp.MustCompile(`<ul(?:[^>]*)>(.*?)</ul>`)
+		matches := re.FindStringSubmatch(match)
+		if len(matches) >= 2 {
+			listContent := matches[1]
+			listContent = regexp.MustCompile(`<li(?:[^>]*)>(.*?)</li>`).ReplaceAllString(listContent, "- $1\n")
+			return "\n" + listContent + "\n"
+		}
+		return match
+	})
+
+	// 有序列表
+	content = regexp.MustCompile(`<ol(?:[^>]*)>(.*?)</ol>`).ReplaceAllStringFunc(content, func(match string) string {
+		re := regexp.MustCompile(`<ol(?:[^>]*)>(.*?)</ol>`)
+		matches := re.FindStringSubmatch(match)
+		if len(matches) >= 2 {
+			listContent := matches[1]
+			counter := 1
+			listContent = regexp.MustCompile(`<li(?:[^>]*)>(.*?)</li>`).ReplaceAllStringFunc(listContent, func(item string) string {
+				re := regexp.MustCompile(`<li(?:[^>]*)>(.*?)</li>`)
+				itemMatches := re.FindStringSubmatch(item)
+				if len(itemMatches) >= 2 {
+					result := fmt.Sprintf("%d. %s\n", counter, itemMatches[1])
+					counter++
+					return result
+				}
+				return item
+			})
+			return "\n" + listContent + "\n"
+		}
+		return match
+	})
+
+	return content
+}
+
+// convertConfluenceSpecific 转换Confluence特定的标签
+func (c *ConfluenceClient) convertConfluenceSpecific(content string) string {
+	// Confluence代码块
+	content = regexp.MustCompile(`<ac:structured-macro[^>]*ac:name="code"[^>]*>(.*?)</ac:structured-macro>`).ReplaceAllStringFunc(content, func(match string) string {
+		// 提取语言参数
+		langRe := regexp.MustCompile(`<ac:parameter[^>]*ac:name="language"[^>]*>(.*?)</ac:parameter>`)
+		langMatches := langRe.FindStringSubmatch(match)
+		language := ""
+		if len(langMatches) >= 2 {
+			language = langMatches[1]
+		}
+
+		// 提取代码内容
+		codeRe := regexp.MustCompile(`<ac:plain-text-body><!\[CDATA\[(.*?)\]\]></ac:plain-text-body>`)
+		codeMatches := codeRe.FindStringSubmatch(match)
+		if len(codeMatches) >= 2 {
+			code := codeMatches[1]
+			return fmt.Sprintf("\n```%s\n%s\n```\n\n", language, code)
+		}
+		return match
+	})
+
+	// Confluence信息框
+	content = regexp.MustCompile(`<ac:structured-macro[^>]*ac:name="info"[^>]*>(.*?)</ac:structured-macro>`).ReplaceAllStringFunc(content, func(match string) string {
+		bodyRe := regexp.MustCompile(`<ac:rich-text-body>(.*?)</ac:rich-text-body>`)
+		bodyMatches := bodyRe.FindStringSubmatch(match)
+		if len(bodyMatches) >= 2 {
+			body := c.stripHTMLTags(bodyMatches[1])
+			return fmt.Sprintf("\n> ℹ️ **信息**: %s\n\n", body)
+		}
+		return match
+	})
+
+	// Confluence警告框
+	content = regexp.MustCompile(`<ac:structured-macro[^>]*ac:name="warning"[^>]*>(.*?)</ac:structured-macro>`).ReplaceAllStringFunc(content, func(match string) string {
+		bodyRe := regexp.MustCompile(`<ac:rich-text-body>(.*?)</ac:rich-text-body>`)
+		bodyMatches := bodyRe.FindStringSubmatch(match)
+		if len(bodyMatches) >= 2 {
+			body := c.stripHTMLTags(bodyMatches[1])
+			return fmt.Sprintf("\n> ⚠️ **警告**: %s\n\n", body)
+		}
+		return match
+	})
+
+	// Confluence表格 (简化处理)
+	content = regexp.MustCompile(`<table[^>]*>(.*?)</table>`).ReplaceAllStringFunc(content, func(match string) string {
+		// 简单的表格转换，实际实现可能需要更复杂的逻辑
+		return "\n[表格内容 - 需要手动格式化]\n\n"
+	})
+
+	return content
+}
+
+// stripHTMLTags 移除HTML标签
+func (c *ConfluenceClient) stripHTMLTags(content string) string {
+	re := regexp.MustCompile(`<[^>]*>`)
+	return re.ReplaceAllString(content, "")
+}
+
+// cleanupMarkdown 清理Markdown格式
+func (c *ConfluenceClient) cleanupMarkdown(content string) string {
+	// 移除多余的空行
+	content = regexp.MustCompile(`\n{3,}`).ReplaceAllString(content, "\n\n")
+
+	// 移除行首行尾的空格
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimSpace(line)
+	}
+	content = strings.Join(lines, "\n")
+
+	return content
+}
+
+// parseInt 辅助函数：字符串转整数
+func parseInt(s string) int {
+	if i, err := strconv.Atoi(s); err == nil {
+		return i
+	}
+	return 1
 }

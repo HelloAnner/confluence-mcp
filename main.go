@@ -41,11 +41,12 @@ func main() {
 	log.Println("- X-Confluence-Token: UserPassword")
 	log.Println("")
 	log.Println("Available tools:")
-	log.Println("- get_page: 获取Confluence页面信息（包含评论）")
+	log.Println("- get_page: 获取Confluence页面并返回Markdown格式（包含页面内容和评论）")
 	log.Println("- get_child_pages: 获取指定页面的子页面列表")
 	log.Println("- create_page: 在Confluence中创建新页面")
 	log.Println("- create_comment: 为Confluence页面添加评论")
 	log.Println("- search_pages: 在Confluence中搜索页面")
+	log.Println("- convert_page_to_markdown: 将Confluence页面转换为Markdown格式（返回JSON格式的元数据）")
 
 	// 启动服务器
 	if err := httpServer.Start(":8080"); err != nil {
@@ -56,13 +57,13 @@ func main() {
 // 注册所有工具
 func registerTools(s *server.MCPServer) {
 	// 获取页面工具
-	s.AddTool(mcp.NewTool("get_page",
-		mcp.WithDescription("获取Confluence页面信息（包含页面内容和评论）"),
+	s.AddTool(mcp.NewTool("get_page_and_comment",
+		mcp.WithDescription("获取Confluence页面内容并返回Markdown格式（包含页面元数据、内容和评论）"),
 		mcp.WithString("page_id", mcp.Required(), mcp.Description("Confluence页面的ID")),
 	), handleGetPage())
 
 	// 获取子页面工具
-	s.AddTool(mcp.NewTool("get_child_pages",
+	s.AddTool(mcp.NewTool("get_child_page_list",
 		mcp.WithDescription("获取指定页面的子页面列表"),
 		mcp.WithString("page_id", mcp.Required(), mcp.Description("父页面的ID")),
 		mcp.WithNumber("limit", mcp.Description("返回结果的最大数量")),
@@ -70,7 +71,7 @@ func registerTools(s *server.MCPServer) {
 	), handleGetChildPages())
 
 	// 创建页面工具
-	s.AddTool(mcp.NewTool("create_page",
+	s.AddTool(mcp.NewTool("create_new_page",
 		mcp.WithDescription("在Confluence中创建新页面"),
 		mcp.WithString("title", mcp.Required(), mcp.Description("页面标题")),
 		mcp.WithString("content", mcp.Required(), mcp.Description("页面内容（支持Confluence存储格式）")),
@@ -79,7 +80,7 @@ func registerTools(s *server.MCPServer) {
 	), handleCreatePage())
 
 	// 创建评论工具
-	s.AddTool(mcp.NewTool("create_comment",
+	s.AddTool(mcp.NewTool("create_new_comment",
 		mcp.WithDescription("为Confluence页面添加评论"),
 		mcp.WithString("page_id", mcp.Required(), mcp.Description("页面ID")),
 		mcp.WithString("comment", mcp.Required(), mcp.Description("评论内容")),
@@ -93,4 +94,10 @@ func registerTools(s *server.MCPServer) {
 		mcp.WithNumber("limit", mcp.Description("返回结果的最大数量")),
 		mcp.WithNumber("start", mcp.Description("起始位置")),
 	), handleSearchPages())
+
+	// 转换页面为Markdown工具
+	s.AddTool(mcp.NewTool("convert_page_to_markdown",
+		mcp.WithDescription("将Confluence页面内容转换为Markdown格式，包含页面元数据、内容和评论"),
+		mcp.WithString("page_id", mcp.Required(), mcp.Description("要转换的Confluence页面ID")),
+	), handleConvertPageToMarkdown())
 }

@@ -26,7 +26,7 @@ func main() {
 	registerTools(s)
 
 	// 创建 HTTP 服务器，配置HTTP上下文函数来提取头信息
-	httpServer := server.NewStreamableHTTPServer(s, 
+	httpServer := server.NewStreamableHTTPServer(s,
 		server.WithHTTPContextFunc(func(ctx context.Context, req *http.Request) context.Context {
 			// 将HTTP头信息注入到上下文中
 			return context.WithValue(ctx, "request", req)
@@ -37,9 +37,9 @@ func main() {
 	log.Println("Endpoint: http://localhost:8080/mcp")
 	log.Println("")
 	log.Println("Multi-user support enabled - pass credentials via headers:")
-	log.Println("- X-Confluence-Base-URL: Confluence实例URL")
-	log.Println("- X-Confluence-Email: 用户邮箱")
-	log.Println("- X-Confluence-Token: API令牌")
+	log.Println("- X-Confluence-Base-URL: Confluence Address")
+	log.Println("- X-Confluence-Name: UserName")
+	log.Println("- X-Confluence-Token: UserPassword")
 	log.Println("")
 	log.Println("Available tools:")
 	log.Println("- get_page: 获取Confluence页面信息")

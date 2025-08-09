@@ -9,33 +9,6 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// getHeadersFromContext 从上下文中提取HTTP头信息
-// 这个函数尝试从mcp-go库设置的上下文中获取HTTP头信息
-func getHeadersFromContext(ctx context.Context) http.Header {
-	// 尝试从上下文中获取HTTP头信息
-	// mcp-go库可能会将HTTP头信息存储在上下文中
-	if headers, ok := ctx.Value("headers").(http.Header); ok {
-		return headers
-	}
-	
-	// 尝试其他可能的键名
-	if headers, ok := ctx.Value("http.headers").(http.Header); ok {
-		return headers
-	}
-	
-	// 尝试从request中获取
-	if req, ok := ctx.Value("request").(*http.Request); ok {
-		return req.Header
-	}
-	
-	// 尝试从http.Request中获取
-	if req, ok := ctx.Value("http.Request").(*http.Request); ok {
-		return req.Header
-	}
-	
-	return nil
-}
-
 // getClientFromContext 从上下文中获取用户凭据并创建客户端
 func getClientFromContext(request mcp.CallToolRequest) (*ConfluenceClient, error) {
 
@@ -48,7 +21,7 @@ func getClientFromContext(request mcp.CallToolRequest) (*ConfluenceClient, error
 	
 	client := NewConfluenceClientWithCredentials(baseURL, name, apiToken)
 	if err := client.ValidateCredentials(); err != nil {
-		return nil, fmt.Errorf("认证信息不完整: %v", err)
+		return nil, fmt.Errorf("Confluence Auth Failed: %v", err)
 	}
 	
 	return client, nil
